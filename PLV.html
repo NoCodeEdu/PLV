@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PLV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: one column tool — drop zone, then a control strip, then a scrollable track table that mirrors the Music app's own field names. */
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#141821; --muted:#5B6271; --line:#D9DEE5;
+  --accent:#C21F5B; --accent-ink:#FFFFFF; --accent-soft:#FBE6EE; --bad:#B42318; --bad-soft:#FDECEA;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101318; --surface:#191D24; --ink:#E7EAF0; --muted:#9BA2B1; --line:#2B313B;
+  --accent:#FF6E9B; --accent-ink:#1B0910; --accent-soft:#3A1727; --bad:#FF8A80; --bad-soft:#3A1715; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101318; --surface:#191D24; --ink:#E7EAF0; --muted:#9BA2B1; --line:#2B313B;
+  --accent:#FF6E9B; --accent-ink:#1B0910; --accent-soft:#3A1727; --bad:#FF8A80; --bad-soft:#3A1715; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-inline:16px;padding-block:32px 48px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:20px;min-width:0}
+.wrap > *{min-width:0}
+body.wide .wrap{max-width:none;padding-inline:clamp(0px,2vw,24px)}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.top > div:first-child{min-width:0;flex:1 1 320px}
+.settings{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.switch{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;padding:6px 0}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .track{width:36px;height:20px;border-radius:99px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked + .track{background:var(--accent)}
+.switch input:checked + .track::after{transform:translateX(16px)}
+.switch input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+.emptystate{display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px;padding:28px 24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;color:var(--muted)}
+.emptystate strong{display:block;color:var(--ink);font-size:16px;margin-bottom:2px}
+.emptystate .rows{flex:none;display:grid;gap:5px;width:88px}
+.emptystate .rows i{display:block;height:7px;border-radius:4px;background:var(--line)}
+.emptystate .rows i:nth-child(1){background:var(--accent);opacity:.55}
+.emptystate .rows i:nth-child(3){width:70%}
+.emptystate p{margin:0;max-width:60ch;flex:1 1 260px}
+h1,h2{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.1}
+h2{font-size:22px;line-height:1.2;min-width:0;overflow-wrap:anywhere}
+.lede{margin:6px 0 0;color:var(--muted);max-width:60ch}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.drop{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px;padding:22px 24px;background:var(--surface);border:1.5px dashed var(--line);border-radius:14px;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop .disc{flex:none;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,var(--surface) 0 5px,var(--accent) 6px 9px,var(--ink) 10px 100%)}
+.drop .txt{flex:1 1 240px;min-width:0}
+.drop strong{display:block;font-size:17px}
+.drop small{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.small{padding:6px 12px;font-size:13px;font-weight:500}
+.hint{font-size:13px;color:var(--muted)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.sr{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+details{color:var(--muted);font-size:14px}
+details summary{cursor:pointer;width:fit-content}
+details ol{margin:8px 0 0;padding-left:22px;max-width:65ch}
+details li{margin-block:3px}
+kbd{font:12px var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+
+.error{white-space:pre-line;padding:12px 16px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font-weight:500}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px;padding:18px 20px 14px}
+.meta{font:13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+
+.controls{display:grid;gap:14px;padding:0 20px 18px;border-bottom:1px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:72px}
+select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);max-width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 300px;min-width:0}
+.chip{padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:transparent;font-size:13px;cursor:pointer;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.link{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font-size:13px;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg label{position:relative;cursor:pointer}
+.seg span{display:block;padding:7px 14px;font:500 13px var(--mono)}
+.seg input:checked+span{background:var(--ink);color:var(--surface)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.check{display:inline-flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.spacer{flex:1}
+
+.tablewrap{overflow:auto;max-height:max(320px,calc(100vh - 220px));scrollbar-width:auto;scrollbar-color:var(--muted) var(--bg)}
+/* Styled scrollbars stay visible in Chrome, Edge and Safari instead of fading out as overlays. */
+.tablewrap::-webkit-scrollbar{width:12px;height:12px;background:var(--bg)}
+.tablewrap::-webkit-scrollbar-track{background:var(--bg);border-top:1px solid var(--line)}
+.tablewrap::-webkit-scrollbar-thumb{background:var(--muted);border-radius:99px;border:3px solid var(--bg)}
+.tablewrap::-webkit-scrollbar-thumb:hover{background:var(--ink)}
+.tablewrap::-webkit-scrollbar-corner{background:var(--bg)}
+table{border-collapse:collapse;width:max-content;min-width:100%;font-size:13.5px}
+th,td{padding:8px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line);max-width:340px;overflow:hidden;text-overflow:ellipsis}
+th{position:sticky;top:0;background:var(--surface);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
+td.num{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right}
+th.num{text-align:right}
+td.idx{color:var(--muted);font-family:var(--mono);font-size:12px;text-align:right;width:1%}
+tbody tr:hover td{background:var(--accent-soft)}
+.more{padding:10px 20px;font-size:13px;color:var(--muted)}
+.empty{padding:28px 20px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-weight:500;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:560px){.label{min-width:0;width:100%}.spacer{display:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>PLV</h1>
+      <p class="lede">Drop a playlist exported from Apple Music or iTunes and save it as a CSV or Excel file. Everything runs in your browser; the file never leaves your device.</p>
+    </div>
+    <div class="settings">
+      <label class="switch" for="wide"><input type="checkbox" id="wide"><span class="track" aria-hidden="true"></span>Full width</label>
+      <label class="switch" for="confirmClose"><input type="checkbox" id="confirmClose"><span class="track" aria-hidden="true"></span>Confirm before closing window</label>
+    </div>
+  </header>
+
+  <label class="drop" id="drop" for="file">
+    <div class="disc" aria-hidden="true"></div>
+    <div class="txt">
+      <strong>Drop exported playlists here</strong>
+      <small>Unicode Text (.txt), XML (.xml), M3U or M3U8. New files open alongside the ones already open.</small>
+    </div>
+    <span class="btn">Choose files…</span>
+    <input class="sr" type="file" id="file" multiple accept=".txt,.xml,.m3u,.m3u8,text/plain,application/xml,text/xml">
+  </label>
+
+  <details>
+    <summary>How to export a playlist from Music or iTunes</summary>
+    <ol>
+      <li>Select the playlist in the sidebar.</li>
+      <li>Choose <kbd>File</kbd> › <kbd>Library</kbd> › <kbd>Export Playlist…</kbd></li>
+      <li>Pick <b>Unicode Text</b> (the most columns) or <b>XML</b>. Exporting the whole library as XML lets you pick any playlist here, or save them all as sheets in one workbook.</li>
+    </ol>
+  </details>
+
+  <div class="error" id="error" hidden></div>
+
+  <div class="emptystate" id="empty">
+    <div class="rows" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p><strong>No playlists open</strong>Drop an export above and its tracks will appear here as a table. Choose the columns you want, then save it as CSV or XLSX.</p>
+  </div>
+
+  <section class="panel" id="panel" aria-labelledby="plName" hidden>
+    <div class="head">
+      <h2 id="plName">Playlist</h2>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="controls">
+      <div class="row">
+        <span class="label">Open</span>
+        <select id="plSelect" aria-label="Open playlists"></select>
+        <button class="btn small" id="closePl" type="button">Close playlist</button>
+        <button class="btn small" id="closeFile" type="button" hidden>Close whole file</button>
+        <span class="hint" id="openCount"></span>
+      </div>
+      <div class="row">
+        <span class="label">Columns</span>
+        <div class="chips" id="chips"></div>
+        <button class="link" id="allCols" type="button">All</button>
+        <button class="link" id="defCols" type="button">Defaults</button>
+      </div>
+      <div class="row">
+        <span class="label">Options</span>
+        <label class="check"><input type="checkbox" id="fmtTime" checked> Time as m:ss</label>
+        <label class="check" id="swapWrap" hidden><input type="checkbox" id="swap"> Swap name and artist</label>
+        <label class="check" id="allWrap" hidden><input type="checkbox" id="allSheets"> All open playlists, one sheet each</label>
+      </div>
+      <div class="row">
+        <span class="label">Save as</span>
+        <div class="seg" role="radiogroup" aria-label="File format">
+          <label><input class="sr" type="radio" name="fmt" id="fmtCsv" value="csv" checked><span>CSV</span></label>
+          <label><input class="sr" type="radio" name="fmt" id="fmtXlsx" value="xlsx"><span>XLSX</span></label>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn" id="copy" type="button">Copy as table</button>
+        <button class="btn primary" id="export" type="button">Save CSV</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table id="table"></table></div>
+    <div class="more" id="more" hidden></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const DEFAULT_ON = ['Name','Artist','Album','Album Artist','Composer','Genre','Year','Time','Track Number','Disc Number','Plays','My Rating','Date Added'];
+const PREFERRED = ['Name','Artist','Album Artist','Composer','Album','Grouping','Work','Movement Name','Genre','Year','Time','Track Number','Track Count','Disc Number','Disc Count','Plays','Skips','My Rating','Loved','Date Added','Date Modified','Last Played','Last Skipped','Release Date','Bit Rate','Sample Rate','Size','Kind','Comments','Location'];
+const NUMERIC = new Set(['Year','Time','Track Number','Track Count','Disc Number','Disc Count','Plays','Skips','My Rating','Album Rating','Bit Rate','Sample Rate','Size','BPM','Movement Number','Movement Count','Volume Adjustment']);
+const PREVIEW_MAX = 500;
+
+
+/* ---------- decoding & parsing ---------- */
+function decode(buf){
+  const b = new Uint8Array(buf);
+  if (b[0]===0xFF && b[1]===0xFE) return {text:new TextDecoder('utf-16le').decode(b.subarray(2)), enc:'UTF-16'};
+  if (b[0]===0xFE && b[1]===0xFF) return {text:new TextDecoder('utf-16be').decode(b.subarray(2)), enc:'UTF-16'};
+  if (b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) return {text:new TextDecoder('utf-8').decode(b.subarray(3)), enc:'UTF-8'};
+  let zo=0, ze=0; const n = Math.min(b.length, 4000);
+  for (let i=0;i<n;i++) if (b[i]===0) (i%2 ? zo++ : ze++);
+  if (zo > n/4) return {text:new TextDecoder('utf-16le').decode(b), enc:'UTF-16'};
+  if (ze > n/4) return {text:new TextDecoder('utf-16be').decode(b), enc:'UTF-16'};
+  try { return {text:new TextDecoder('utf-8',{fatal:true}).decode(b), enc:'UTF-8'}; }
+  catch { return {text:new TextDecoder('windows-1252').decode(b), enc:'Western'}; }
+}
+const baseName = n => n.replace(/\.[^.]+$/,'') || 'Playlist';
+const lines = t => t.split(/\r\n|\r|\n/);
+
+function parse(text, name){
+  const t = text.replace(/^﻿/,'');
+  const head = t.slice(0,800).trimStart();
+  if (/^<\?xml|^<!DOCTYPE plist|^<plist/i.test(head)) return parsePlist(t, name);
+  if (head.startsWith('#EXTM3U') || /\.m3u8?$/i.test(name)) return parseM3U(t, name);
+  if (lines(t)[0].includes('\t')) return parseTSV(t, name);
+  throw new Error("This file doesn't look like a playlist export. In Music, use File › Library › Export Playlist… and choose Unicode Text, XML or M3U.");
+}
+
+function parseTSV(t, name){
+  const ls = lines(t).filter(l => l.trim().length);
+  const hdr = ls[0].split('\t').map(h => h.trim());
+  if (!hdr.includes('Name')) throw new Error("The text file has no Name column, so it isn't a Music playlist export. Export it again as Unicode Text.");
+  const rows = ls.slice(1).map(l => {
+    const c = l.split('\t'), o = {};
+    hdr.forEach((h,i) => { const v = (c[i] ?? '').trim(); if (v !== '') o[h] = v; });
+    for (const k of ['My Rating','Album Rating']) { const n = Number(o[k]); if (n > 5 && n <= 100) o[k] = String(Math.round(n/20)); }
+    return o;
+  });
+  return {format:'Unicode Text', order:hdr, playlists:[{name:baseName(name), rows}]};
+}
+
+function plistVal(el){
+  switch (el.tagName){
+    case 'dict': { const o = {}; let k = null;
+      for (const c of el.children){ if (c.tagName==='key') k = c.textContent; else { o[k] = plistVal(c); k = null; } }
+      return o; }
+    case 'array': return Array.from(el.children, plistVal);
+    case 'integer': case 'real': return Number(el.textContent);
+    case 'true': return true;
+    case 'false': return false;
+    case 'date': return new Date(el.textContent);
+    default: return el.textContent;
+  }
+}
+const pad = n => String(n).padStart(2,'0');
+const fmtDate = d => isNaN(d) ? '' : `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const SKIP = new Set(['Track ID','Persistent ID','Track Type','File Folder Count','Library Folder Count','Artwork Count','Normalization','Play Date','Rating Computed','Album Rating Computed','Sort Name','Sort Artist','Sort Album','Sort Album Artist','Sort Composer']);
+const RENAME = {'Total Time':'Time','Play Count':'Plays','Skip Count':'Skips','Rating':'My Rating','Play Date UTC':'Last Played','Skip Date':'Last Skipped'};
+
+function normTrack(tr){
+  const o = {};
+  for (const [k0,v] of Object.entries(tr)){
+    if (SKIP.has(k0)) continue;
+    const k = RENAME[k0] || k0;
+    if (k0==='Total Time') o[k] = String(Math.round(v/1000));
+    else if (k0==='Rating'){ if (!tr['Rating Computed']) o[k] = String(Math.round(v/20)); }
+    else if (k0==='Album Rating'){ if (!tr['Album Rating Computed']) o[k] = String(Math.round(v/20)); }
+    else if (k0==='Location'){ let p = String(v).replace(/^file:\/\/(localhost)?/,''); try { p = decodeURIComponent(p); } catch {} o[k] = p.replace(/^\/([A-Za-z]:\/)/,'$1'); }
+    else if (v instanceof Date) o[k] = fmtDate(v);
+    else if (v === true) o[k] = 'Yes';
+    else if (v === false) continue;
+    else if (typeof v === 'object') continue;
+    else o[k] = String(v);
+  }
+  return o;
+}
+
+function parsePlist(t){
+  const doc = new DOMParser().parseFromString(t, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('The XML file could not be read. It may be incomplete or damaged; try exporting it again.');
+  const root = doc.documentElement.firstElementChild;
+  const lib = root ? plistVal(root) : {};
+  if (!lib.Tracks) throw new Error('This XML file has no track list. Export it from Music with File › Library › Export Playlist… and choose XML.');
+  const tracks = {};
+  for (const [id,tr] of Object.entries(lib.Tracks)) tracks[id] = normTrack(tr);
+  const pls = [];
+  for (const p of lib.Playlists || []){
+    if (p.Folder || !Array.isArray(p['Playlist Items'])) continue;
+    const rows = p['Playlist Items'].map(i => tracks[i['Track ID']]).filter(Boolean);
+    if (rows.length) pls.push({name:p.Name || 'Untitled', rows, system:!!(p.Master || p['Distinguished Kind'])});
+  }
+  if (!pls.length) pls.push({name:'All tracks', rows:Object.values(tracks)});
+  pls.sort((a,b) => (a.system?1:0) - (b.system?1:0));
+  return {format:'XML', order:PREFERRED, playlists:pls};
+}
+
+function parseM3U(t, name){
+  const rows = []; let cur = null;
+  for (const raw of lines(t)){
+    const l = raw.trim(); if (!l) continue;
+    if (l.startsWith('#EXTINF:')){
+      cur = {};
+      const m = l.slice(8).match(/^(-?\d+(?:\.\d+)?)[^,]*,(.*)$/);
+      if (m){
+        const s = Math.round(Number(m[1])); if (s > 0) cur.Time = String(s);
+        const d = m[2].trim(), i = d.lastIndexOf(' - ');
+        if (i > 0){ cur.Name = d.slice(0,i); cur.Artist = d.slice(i+3); } else cur.Name = d;
+      }
+    } else if (!l.startsWith('#')){
+      cur = cur || {};
+      cur.Location = l;
+      if (!cur.Name) cur.Name = l.split(/[\\/]/).pop().replace(/\.[^.]+$/,'');
+      rows.push(cur); cur = null;
+    }
+  }
+  if (!rows.length) throw new Error('No tracks were found in this M3U file.');
+  return {format:/\.m3u8$/i.test(name) ? 'M3U8' : 'M3U', order:['Name','Artist','Time','Location'], m3u:true, playlists:[{name:baseName(name), rows}]};
+}
+
+/* ---------- state ----------
+   files: every open export. Each keeps its own playlists, columns and column choices.
+   src/plIndex: the file and playlist currently shown. */
+let files = [], src = null, plIndex = 0, nextId = 1;
+const current = () => src.playlists[plIndex];
+function buildColumns(f){
+  const seen = new Set();
+  for (const p of f.playlists) for (const r of p.rows) for (const k in r) seen.add(k);
+  const cols = f.order.filter(c => seen.has(c));
+  f.columns = cols.concat([...seen].filter(c => !cols.includes(c)).sort());
+  setDefaults(f);
+}
+function setDefaults(f){
+  f.on = new Set(f.columns.filter(c => DEFAULT_ON.includes(c)));
+  if (!f.on.size) f.columns.forEach(c => f.on.add(c));
+}
+const chosen = (f = src) => f.columns.filter(c => f.on.has(c));
+const openCount = () => files.reduce((n,f) => n + f.playlists.length, 0);
+
+function fmtDur(sec){
+  sec = Math.round(sec); if (!isFinite(sec)) return '';
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+function cell(r, c, f = src){
+  let key = c;
+  if (f.m3u && f.swap && (c==='Name' || c==='Artist')) key = c==='Name' ? 'Artist' : 'Name';
+  const v = r[key];
+  if (v == null) return '';
+  if (c==='Time' && $('#fmtTime').checked && /^\d+$/.test(v)) return fmtDur(Number(v));
+  return v;
+}
+function totalTime(rows){
+  let s = 0; for (const r of rows){ const n = Number(r.Time); if (n) s += n; }
+  if (!s) return '';
+  const h = Math.floor(s/3600), m = Math.round(s%3600/60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = () => document.querySelector('input[name="fmt"]:checked').value;
+
+/* ---------- rendering ---------- */
+function fillSelect(){
+  $('#plSelect').innerHTML = files.map(f =>
+    `<optgroup label="${esc(f.file)}">` +
+    f.playlists.map((p,i) => `<option value="${f.id}:${i}">${esc(p.name)} (${p.rows.length.toLocaleString()})</option>`).join('') +
+    '</optgroup>').join('');
+  if (src) $('#plSelect').value = `${src.id}:${plIndex}`;
+}
+function render(){
+  $('#panel').hidden = !src;
+  $('#empty').hidden = !!src;
+  if (!src) return;
+  const p = current();
+  $('#plName').textContent = p.name;
+  const bits = [`${p.rows.length.toLocaleString()} track${p.rows.length===1?'':'s'}`];
+  const tt = totalTime(p.rows); if (tt) bits.push(tt);
+  bits.push(src.format + (src.enc ? ` · ${src.enc}` : ''));
+  $('#meta').textContent = bits.join(' · ');
+
+  const n = openCount();
+  $('#openCount').textContent = n === 1 ? '1 playlist open' : `${n} playlists open`;
+  $('#closeFile').hidden = src.playlists.length < 2;
+  $('#swapWrap').hidden = !src.m3u;
+  $('#swap').checked = !!src.swap;
+  const xlsx = fmt() === 'xlsx';
+  $('#allWrap').hidden = !(xlsx && n > 1);
+  $('#export').textContent = xlsx ? 'Save XLSX' : 'Save CSV';
+
+  $('#chips').innerHTML = src.columns.map(c => `<button type="button" class="chip" aria-pressed="${src.on.has(c)}" data-col="${esc(c)}">${esc(c)}</button>`).join('');
+
+  const cols = chosen();
+  const rows = p.rows.slice(0, PREVIEW_MAX);
+  if (!cols.length){
+    $('#table').innerHTML = '<tbody><tr><td class="empty">Turn on at least one column to preview and save.</td></tr></tbody>';
+  } else {
+    const isNum = c => NUMERIC.has(c) ? ' class="num"' : '';
+    $('#table').innerHTML =
+      `<thead><tr><th class="num">#</th>${cols.map(c => `<th${isNum(c)}>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
+      rows.map((r,i) => `<tr><td class="idx">${i+1}</td>${cols.map(c => { const v = cell(r,c); return `<td${isNum(c)} title="${esc(v)}">${esc(v)}</td>`; }).join('')}</tr>`).join('') +
+      '</tbody>';
+  }
+  const more = $('#more');
+  more.hidden = p.rows.length <= PREVIEW_MAX;
+  more.textContent = `Showing the first ${PREVIEW_MAX.toLocaleString()} of ${p.rows.length.toLocaleString()} tracks. The saved file includes all of them.`;
+  $('#export').disabled = $('#copy').disabled = !cols.length;
+}
+function show(f, i){ src = f; plIndex = i; fillSelect(); render(); $('.tablewrap').scrollTo(0,0); }
+
+/* ---------- file intake ---------- */
+function showError(msg){ const e = $('#error'); e.textContent = msg; e.hidden = !msg; }
+async function handleFiles(list){
+  const fs = Array.from(list || []); if (!fs.length) return;
+  showError('');
+  const errors = []; let last = null;
+  for (const file of fs){
+    try {
+      const {text, enc} = decode(await file.arrayBuffer());
+      const parsed = parse(text, file.name);
+      const f = {...parsed, id:nextId++, enc:parsed.format==='XML' ? '' : enc, file:file.name, swap:false};
+      buildColumns(f);
+      files.push(f); last = f;
+    } catch (err){
+      errors.push(`${file.name}: ${err.message || 'This file could not be read.'}`);
+    }
+  }
+  if (errors.length) showError(errors.join('\n'));
+  if (last){
+    show(last, 0);
+    toast(fs.length - errors.length === 1 ? `Opened ${last.file}` : `Opened ${fs.length - errors.length} files`);
+  }
+}
+$('#file').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter','dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => document.addEventListener(t, e => { if (t==='dragleave' && e.relatedTarget) return; drop.classList.remove('over'); }));
+document.addEventListener('drop', e => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
+
+/* ---------- switching & closing ---------- */
+$('#plSelect').onchange = e => {
+  const [fid, i] = e.target.value.split(':').map(Number);
+  const f = files.find(x => x.id === fid); if (f) show(f, i);
+};
+function afterClose(fIdx, pIdx){
+  if (!files.length){ src = null; fillSelect(); render(); return; }
+  const f = files[Math.min(fIdx, files.length - 1)];
+  show(f, f === src ? Math.min(pIdx, f.playlists.length - 1) : (fIdx >= files.length ? f.playlists.length - 1 : 0));
+}
+$('#closePl').onclick = () => {
+  const name = current().name, fIdx = files.indexOf(src);
+  src.playlists.splice(plIndex, 1);
+  if (!src.playlists.length){ files.splice(fIdx, 1); afterClose(fIdx, 0); }
+  else afterClose(fIdx, plIndex);
+  toast(`Closed ${name}`);
+};
+$('#closeFile').onclick = () => {
+  const name = src.file, fIdx = files.indexOf(src);
+  files.splice(fIdx, 1); afterClose(fIdx, 0);
+  toast(`Closed ${name}`);
+};
+
+/* ---------- controls ---------- */
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const c = b.dataset.col; src.on.has(c) ? src.on.delete(c) : src.on.add(c); render();
+});
+$('#allCols').onclick = () => { src.columns.forEach(c => src.on.add(c)); render(); };
+$('#defCols').onclick = () => { setDefaults(src); render(); };
+$('#swap').addEventListener('change', e => { src.swap = e.target.checked; render(); });
+['#fmtTime','#fmtCsv','#fmtXlsx'].forEach(s => $(s).addEventListener('change', render));
+
+/* ---------- output ---------- */
+const safeName = s => (s || 'Playlist').replace(/[\\/:*?"<>|]+/g,'-').trim().slice(0,120) || 'Playlist';
+function toCSV(rows, cols){
+  const q = v => { v = String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
+  return '﻿' + [cols.map(q).join(','), ...rows.map(r => cols.map(c => q(cell(r,c))).join(','))].join('\r\n') + '\r\n';
+}
+function toSheet(rows, cols, f){
+  const aoa = [cols, ...rows.map(r => cols.map(c => {
+    const v = cell(r,c,f);
+    return (NUMERIC.has(c) && /^-?\d+(\.\d+)?$/.test(v)) ? Number(v) : v;
+  }))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = cols.map((c,i) => {
+    let w = c.length; for (let r = 1; r < Math.min(aoa.length, 300); r++) w = Math.max(w, String(aoa[r][i]).length);
+    return {wch:Math.min(w + 2, 60)};
+  });
+  if (ws['!ref']) ws['!autofilter'] = {ref:ws['!ref']};
+  return ws;
+}
+function sheetName(n, used){
+  let base = (n || 'Sheet').replace(/[\[\]:*?\/\\]/g,' ').trim().slice(0,31) || 'Sheet', s = base, i = 2;
+  while (used.has(s.toLowerCase())){ const suf = ` (${i++})`; s = base.slice(0, 31 - suf.length) + suf; }
+  used.add(s.toLowerCase()); return s;
+}
+
+let downloadsP = null;
+function getDownloads(){
+  if (!downloadsP) downloadsP = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+  return downloadsP;
+}
+getDownloads();
+function blobSave(filename, data, type){
+  const url = URL.createObjectURL(new Blob([data], {type}));
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+async function saveFile(filename, data, type){
+  const dl = await getDownloads();
+  if (dl){
+    try { await dl.save({filename, data}); toast(`Saved ${filename}`); return; }
+    catch (e){
+      if (e && e.code === 'declined') { toast('Save cancelled'); return; }
+      if (e && e.code === 'rate_limited') { toast('A save prompt is already open'); return; }
+    }
+  }
+  blobSave(filename, data, type);
+  toast(`Saved ${filename}`);
+}
+
+$('#export').onclick = async () => {
+  const cols = chosen(); if (!cols.length) return;
+  const p = current();
+  if (fmt() === 'csv'){
+    await saveFile(safeName(p.name) + '.csv', toCSV(p.rows, cols), 'text/csv;charset=utf-8');
+    return;
+  }
+  if (typeof XLSX === 'undefined'){ showError('The Excel writer did not load, so XLSX is unavailable right now. Save as CSV instead; Excel and Numbers open it directly.'); return; }
+  const wb = XLSX.utils.book_new(), used = new Set();
+  const all = $('#allSheets').checked && openCount() > 1;
+  const sheets = all ? files.flatMap(f => f.playlists.map(pl => [f, pl])) : [[src, p]];
+  for (const [f, pl] of sheets){
+    const fc = chosen(f); if (!fc.length) continue;
+    XLSX.utils.book_append_sheet(wb, toSheet(pl.rows, fc, f), sheetName(pl.name, used));
+  }
+  const buf = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const name = !all ? safeName(p.name) : files.length === 1 ? safeName(baseName(files[0].file)) : 'Playlists';
+  await saveFile(name + '.xlsx', buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+};
+
+$('#copy').onclick = () => {
+  const cols = chosen(), p = current();
+  const tsv = [cols.join('\t'), ...p.rows.map(r => cols.map(c => String(cell(r,c)).replace(/[\t\r\n]+/g,' ')).join('\t'))].join('\n');
+  const done = () => toast(`Copied ${p.rows.length.toLocaleString()} rows. Paste into Excel, Numbers or Sheets.`);
+  try {
+    navigator.clipboard.writeText(tsv).then(done, () => toast('Copying is blocked here. Use Save instead.'));
+  } catch { toast('Copying is blocked here. Use Save instead.'); }
+};
+
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ---------- settings (remembered per browser) ---------- */
+function setting(id, key, apply){
+  const el = $(id);
+  try { el.checked = localStorage.getItem(key) === '1'; } catch {}
+  const run = () => { apply(el.checked); try { localStorage.setItem(key, el.checked ? '1' : '0'); } catch {} };
+  el.addEventListener('change', run); run();
+  return el;
+}
+setting('#wide', 'p2s-wide', on => document.body.classList.toggle('wide', on));
+const confirmClose = setting('#confirmClose', 'p2s-confirm', () => {});
+window.addEventListener('beforeunload', e => {
+  if (confirmClose.checked && files.length){ e.preventDefault(); e.returnValue = ''; }
+});
+
+render();
+</script>
+
+</body>
+</html>
