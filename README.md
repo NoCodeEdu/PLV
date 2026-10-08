@@ -7,6 +7,9 @@ A single-page browser app that views and converts Apple Music / iTunes playlist 
 - XML (`.xml`) — including library exports with multiple playlists
 - M3U / M3U8 (`.m3u`, `.m3u8`)
 
+## Example
+https://nocodeedu.github.io/PLV/PLV.html
+
 ## How to use
 
 1. Open the HTML file in any modern browser.
